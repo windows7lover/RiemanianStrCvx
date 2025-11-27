@@ -1,79 +1,39 @@
 % -------------------------------------------------------------------------
 % Localized free-energy minimization on the SPD manifold
-% -------------------------------------------------------------------------
-% Energy with dimension-mixing interactions:
-%
-%     E(X) = 1/2 * Tr(A X B X)  +  Tr(C X)
-%
-% where A,B,C are symmetric matrices (A,B ? 0 for stability).
-%
-% Gradient:
-%
-%     ?E(X) = 1/2 * (A X B + B X A) + C
-%
-% We linearize only the energy term around X0 and keep entropy S(X) exact.
-%
-% Solve the local trust-region subproblem:
-%
-%     minimize_X    < ?E(X0),  X - X0 >_X  -  T * S(X)% -------------------------------------------------------------------------
-% Simplified RFW on a ball in the SPD Manifold
+% Simplified Riemannian Frank-Wolfe (RFW) on a ball in the SPD manifold
 % -------------------------------------------------------------------------
 % INPUT:
-%   f        : function handle returning f(X) and grad f(X)
+%   f        : function handle returning [f(X), grad f(X)]
 %   Xbar     : center of the trust region (SPD matrix)
-%   r        : radius
+%   r        : trust-region radius
 %   max_iter : maximum iterations
 %
 % OUTPUT:
-%   X        : final iterate
+%   X            : final iterate
+%   obj_history  : objective values at each iteration (length max_iter+1)
 % -------------------------------------------------------------------------
 
-function X = rfw_spd(f, Xbar, r, max_iter)
-
+function [X, obj_history] = rfw_spd(f, Xbar, r, max_iter)
+    % initialize
     X = Xbar;
+    obj_history = zeros(max_iter + 1, 1);
+    [obj_history(1), ~] = f(X);
 
     for k = 1:max_iter
-
-        % ---- (1) Gradient -----------------------------------------------
+        % ---- (1) Gradient -------------------------------------------------
         [~, Gk] = f(X);
 
         % ---- (2) LMO direction ------------------------------------------
         Delta_k = X * Gk;
         eta_max = r / norm(Delta_k, 'fro');
 
-        % pick stepsize (your rule; here exact-maximum)
+        % pick stepsize (exact-maximum on the geodesic ball)
         eta_k = eta_max;
 
         % ---- (3) Geodesic update ----------------------------------------
         % X_{k+1} = exp(eta_k * Delta_k) * X_k
         X = expm(eta_k * Delta_k) * X;
 
+        [obj_history(k + 1), ~] = f(X);
     end
 end
-
-%     subject to    d(X, X0) ? r
-%                   X ? S_{++}^n
-%
-% where:
-%   - d(·,·) is the affine-invariant Riemannian distance,
-%   - S(X)  = -Tr[ X log(X) + (I-X) log(I-X) ],
-%   - r > 0 is the trust-region radius.
-%
-% -------------------------------------------------------------------------
-
-% Example entropy
-function val = entropy_S(X)    I = eye(size(X));
-    val = -trace( X*logm(X) + (I-X)*logm(I-X) );
-end
-
-% Example energy ingredients
-A = ...;   % symmetric positive definite
-B = ...;   % symmetric positive definite
-C = ...;   % symmetric
-
-X0 = ...;  % current SPD matrix
-T  = ...;  % temperature
-r  = ...;  % trust-region radius
-
-% Gradient of E at X0:
-gradE_X0 = 0.5 * (A*X0*B + B*X0*A) + C;

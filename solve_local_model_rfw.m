@@ -1,19 +1,19 @@
 % =========================================================================
 % Localized free-energy minimization on SPD manifold using RFW
-%   Minimize   <?E(X0), X - X0> - T S(X)
-%   s.t.       d(X, X0) ? r,  X ? 0
+%   Minimize   <∇E(X0), X - X0> - T S(X)
+%   s.t.       d(X, X0) ≤ r,  X ≻ 0
 %
 % Here:
 %   E(X)  = 1/2 Tr(A X B X) + Tr(C X)
-%   ?E(X) = 1/2 (A X B + B X A) + C
+%   ∇E(X) = 1/2 (A X B + B X A) + C
 %   S(X)  = -Tr[ X log X + (I-X) log(I-X) ]
 %
 % We approximate the inner product by the Frobenius inner product so that
-% the linearized energy term is simply Tr(?E(X0)^T (X - X0)), whose
-% Euclidean gradient is constant: ?E(X0).
+% the linearized energy term is simply Tr(∇E(X0)^T (X - X0)), whose
+% Euclidean gradient is constant: ∇E(X0).
 % =========================================================================
 
-function X = solve_local_model_rfw(A, B, C, X0, T, r, max_iter)
+function [X, obj_history] = solve_local_model_rfw(A, B, C, X0, T, r, max_iter)
     % A,B: SPD coupling matrices (n x n)
     % C  : symmetric matrix (n x n)
     % X0 : current SPD matrix (n x n)
@@ -22,7 +22,7 @@ function X = solve_local_model_rfw(A, B, C, X0, T, r, max_iter)
     % max_iter: number of RFW iterations
 
     % ---- gradient of E at X0 (example energy) ---------------------------
-    gradE_X0 = 0.5 * (A*X0*B + B*X0*A) + C;
+    gradE_X0 = 0.5 * (A * X0 * B + B * X0 * A) + C;
 
     % ---- define local objective f_local(X) ------------------------------
     % f_local(X) = <gradE_X0, X - X0>_F - T S(X)
@@ -31,7 +31,7 @@ function X = solve_local_model_rfw(A, B, C, X0, T, r, max_iter)
     f_handle = @(X) local_free_energy(X, X0, gradE_X0, T);
 
     % ---- run RFW on SPD ball centered at X0 ----------------------------
-    X = rfw_spd(f_handle, X0, r, max_iter);
+    [X, obj_history] = rfw_spd(f_handle, X0, r, max_iter);
 end
 
 % -------------------------------------------------------------------------
@@ -48,7 +48,7 @@ function [val, G] = local_free_energy(X, X0, gradE_X0, T)
 
     % Local model:
     %   f(X) = lin_val - T * S(X)
-    % ?f(X) = lin_grad - T * S_grad
+    % ∇f(X) = lin_grad - T * S_grad
     val = lin_val - T * S_val;
     G   = lin_grad - T * S_grad;
 end
@@ -57,5 +57,18 @@ end
 % Entropy S(X) = -Tr[ X log X + (I-X) log(I-X) ]
 % -------------------------------------------------------------------------
 function val = entropy_S(X)
-    n = size(X,1);
-    I = eye(n
+    n = size(X, 1);
+    I = eye(n);
+
+    val = -real(trace(X * logm(X) + (I - X) * logm(I - X)));
+end
+
+% -------------------------------------------------------------------------
+% Gradient of the entropy term
+% -------------------------------------------------------------------------
+function G = entropy_grad(X)
+    n = size(X, 1);
+    I = eye(n);
+
+    G = -real(logm(X)) + real(logm(I - X));
+end
